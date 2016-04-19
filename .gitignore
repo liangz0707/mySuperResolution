@@ -1,0 +1,9 @@
+*.bmp
+*.pyc
+*.png
+*.jpg
+toolgate/
+.idea/
+tmp_file/
+*.pickle
+bak/
