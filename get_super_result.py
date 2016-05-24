@@ -92,6 +92,22 @@ def mode(l):
     return k[inde][-1]
 
 
+def heavy_feature(img):
+    f1 = np.asarray([[-1.0, 0, 0, 1.0]], dtype='float')
+    f2 = np.asarray([[-1.0], [0], [0], [1.0]], dtype='float')
+    f3 = np.asarray([[1.0, 0, 0, -2.0, 0, 0, 1.0]], dtype='float')
+    f4 = np.asarray([[1.0], [0], [0], [-2.0], [0], [0], [1.0]], dtype='float')
+
+    feature = np.zeros((2, img.shape[0], img.shape[1]))
+    feature[0, :, :] = convolve2d(img, f3, mode='same')
+    feature[1, :, :] = convolve2d(img, f4, mode='same')
+    grad = feature[0, :, :] + feature[1, :, :]
+    l_grad = grad.reshape((grad.shape[0] * grad.shape[1],))
+    hist, bin_edges = np.histogram(l_grad, bins=200)
+    hist = list(np.log2(hist*1.0 / np.sum(hist)))
+    return hist, bin_edges[:-1]
+
+
 def get_patch_class(feature_list, pca=None, kmeans=None):
     """
     通过分析feature_list得到patch所属的分类
@@ -139,13 +155,13 @@ def psnr(img1, img2):
     return 10 * math.log10(N / mse)
 
 
-def read_super_patch():
+def read_super_patch(file_name="tmp_file.pickle"):
     """
     从文件读取已经计算出结果的pathclist
     :return:
     """
     # k = open("tmp_result_3times.pickle", 'rb')
-    k = open("tmp_result_baby_sqrt.pickle", 'rb')
+    k = open(file_name, 'rb')
 
     result = cPickle.load(k)
     k.close()
@@ -269,7 +285,7 @@ def get_super_patch_sc(feature_list, patch_list=None, tag=1):
     return result
 
 
-def get_super_patch_regression_with_search(feature_list, patch_list=None, tag=1):
+def get_super_patch_regression_with_search(feature_list, patch_list=None, tag=1, file_name="tmp_file.pickle"):
     """
     得到得到高分辨率的patch
     patch_list:需要进行超分辨率的patch
@@ -336,7 +352,7 @@ def get_super_patch_regression_with_search(feature_list, patch_list=None, tag=1)
     print "计算完成：耗时%f秒\n" % (b - a)
     a = b
 
-    k = open("tmp_result_baby_sqrt.pickle", 'wb')
+    k = open(file_name, 'wb')
     cPickle.dump(result, k, 1)
     k.close()
     return result
@@ -591,6 +607,7 @@ def combine_image_deal_with_overlap(r_patch_list, pos_list, mim, mim_list, pl=9,
     plt.hist(point_sort, bins=100)
     plt.show()
 
+    result_patchmean = img / mask
     gap = img * 0   # 单像素平均和patch平均的误差，为什么会有误差？ 最后结果的psnr值相差0.01 可以忽略
     # ======================================================================================
     for index, c in enumerate(point_sort):
@@ -603,7 +620,8 @@ def combine_image_deal_with_overlap(r_patch_list, pos_list, mim, mim_list, pl=9,
         if c > 1.8:
             gap[point_r_pos[index][0]][point_r_pos[index][1]] = c
 
-    return img / mask, gap
+    result_points = img / mask
+    return result_patchmean, result_points, gap
 
 
 def combine_image_from_patch(r_patch_list, pos_list, mim, mim_list, pl=9):
@@ -732,7 +750,8 @@ def deformed_image_based(src, dst):
     return cp
 
 
-def super_image(method="sc", input='result/baby_GT.bmp', output="result_baby_sqrt.bmp"):
+def super_image(method="sc", input='result/baby_GT.bmp', output="result_baby.bmp"):
+    tmp_file_name = output + '.pickle'
     """
     处理超分辨率的输入输出
     :return:
@@ -770,7 +789,7 @@ def super_image(method="sc", input='result/baby_GT.bmp', output="result_baby_sqr
     # featurn_sign = np.sign(feature)  # 提取符号
     # feature = np.abs(feature)**2 * featurn_sign
 
-    mim_class = super_pixel_classify(test_img, cls_num=100)
+    # mim_class = super_pixel_classify(test_img, cls_num=100)
 
     # ================================ 将patch 和feature 分解list=================================
     # =======================  feature、patch ----》 feature_list \ patch_list ====================
@@ -788,8 +807,8 @@ def super_image(method="sc", input='result/baby_GT.bmp', output="result_baby_sqr
     patch_size_m = 3 * patch_size_l
     patch_size_h = 3 * patch_size_l
     over_lap_l = 2
-    over_lap_m = 3 * over_lap_l
-    over_lap_h = 3 * over_lap_l
+    over_lap_m = 3 * over_lap_l # 7  # 可以随意的定义重叠的大小
+    over_lap_h = 3 * over_lap_l # 7  # 可以随意的定义重叠的大小
 
     size_l = lim.shape
     size_m = mim.shape
@@ -807,33 +826,37 @@ def super_image(method="sc", input='result/baby_GT.bmp', output="result_baby_sqr
     l = patch_size_l * patch_size_l
 
     # ========================     提取patch      ============================
+    '''
     for x_l, x_m, x_h in zip(xgrid_l, xgrid_m, xgrid_h):
         for y_l, y_m, y_h in zip(ygrid_l, ygrid_m, ygrid_h):
+    '''
+    for x_m, x_h in zip(xgrid_m, xgrid_h):
+        for y_m, y_h in zip(ygrid_m, ygrid_h):
             # 高清patch
             him_list.append(him[x_h:x_h+patch_size_h, y_h:y_h+patch_size_h].reshape((h,)))
             # 中清patch向量化
             mim_list.append(mim[x_h:x_h+patch_size_h, y_h:y_h+patch_size_h].reshape((h,)))
             # 低清patch向量化
-            lim_list.append(lim[x_l:x_l+patch_size_l, y_l:y_l+patch_size_l].reshape((l,)))
+            # lim_list.append(lim[x_l:x_l+patch_size_l, y_l:y_l+patch_size_l].reshape((l,)))
             # 特征patch
             feature_list.append(feature[:, x_m:x_m+patch_size_m, y_m:y_m+patch_size_m].reshape((m,)))
             # 高清patch的位置
             pos_list.append((x_h, y_h))  # 保存patch左上角的位置
             # 低清patch的位置
-            pos_list_lim.append((x_l, y_l))
+            #pos_list_lim.append((x_l, y_l))
             # 高清patch均值
             patch_mean.append(np.mean(mim[x_h:x_h+patch_size_h, y_h:y_h+patch_size_h].reshape((h,))))
             # 待回复patch的超像素分类
-            mim_cls_list.append(mim_class[x_h, y_h])
+            # mim_cls_list.append(mim_class[x_h, y_h])
     # ========================= 对patch进行前处理 ===========================
-    feature_list, patch_list, lim_list, mim_list = (np.asarray(feature_list, dtype=float), np.asarray(him_list, dtype=float), np.asarray(lim_list, dtype=float), np.asarray(mim_list, dtype=float))
-
+    feature_list, patch_list,  mim_list = (np.asarray(feature_list, dtype=float), np.asarray(him_list, dtype=float), np.asarray(mim_list, dtype=float))
+    # lim_list = np.asarray(lim_list, dtype=float)
     # =========================    进行实际计算   ========================================
     r_patch_list = []
     if method is "infile":
-        r_patch_list = read_super_patch()
+        r_patch_list = read_super_patch(tmp_file_name)
     elif method is "regression":
-        r_patch_list = get_super_patch_regression_with_search(feature_list, him_list, tag=1)
+        r_patch_list = get_super_patch_regression_with_search(feature_list, him_list, tag=1, file_name = tmp_file_name)
         # r_patch_list = get_super_patch_regression_with_superpixel(feature_list, him_list, mim_cls_list, tag=1)
         # r_patch_list = get_super_patch_regression_without_search(feature_list, him_list, tag=1, lim_list=lim_list, mim_list=mim_list)
     elif method is "sc":
@@ -843,28 +866,38 @@ def super_image(method="sc", input='result/baby_GT.bmp', output="result_baby_sqr
     # ========================      组合结果     =======================================
     #  r_image = combine_image_from_patch(r_patch_list, pos_list, mim, mim_list)
     #  r_image = combine_image_from_patch_with_deformed(r_patch_list, pos_list, rim, mim_list=mim_list, lim_list=lim_list, patch_list=patch_list,image=image)
-    r_image ,r_gap= combine_image_deal_with_overlap(r_patch_list, pos_list, mim, mim_list)
+    result_patchmean, r_image, r_gap = combine_image_deal_with_overlap(r_patch_list, pos_list, mim, mim_list)
 
     result = r_image  # + rim
     result[result > 255] = 255
     result[result < 0] = 0
 
-    # ========================      结果展示     =======================================
+    result_mean = result_patchmean  # + rim
+    result_mean[result_mean > 255] = 255
+    result_mean[result_mean < 0] = 0
+
+    # ========================    保存结果       =============================
     io.imsave(output, np.asarray(result, dtype='uint8'))
 
-    # 计算梯度直方图
-    feature = np.zeros((2, result.shape[0], result.shape[1]))
-    feature[0, :, :] = convolve2d(result, f3, mode='same')
-    feature[1, :, :] = convolve2d(result, f4, mode='same')
-    grad = np.abs(feature[0, :, :]) + np.abs(feature[1, :, :])
-    #plt.hist(list(np.abs(grad.reshape((grad.shape[0] * grad.shape[1],)))), bins=20)
-    #plt.show()
-
+    # ========================    误差计算       ======================================
     # 填充没有计算的区域！！！！！！！！！！！！
     # result[result == 0] = mim[result == 0]  # 处理边界
-    print "峰值性噪比：%0.5f" % psnr(result[3:-3,3:-3], him[3:-3,3:-3])
+    print "峰值性噪比：%0.5f" % psnr(result[3:-3, 3:-3], him[3:-3,3:-3])
 
-    # =========================  组合结果 ======================
+    # ========================      结果展示     =======================================
+    # ==================== 这里展示除了heavy-tailed特征以及梯度统计特征
+
+    # 计算梯度直方图
+    h1, b1 = heavy_feature(result_mean)
+    h2, b2 = heavy_feature(result)
+    h3, b3 = heavy_feature(him)
+    plt.plot(b1, h1, color='red', label="result by patch mean")
+    plt.plot(b2, h2, color='black', label="result by dealing with pixel")
+    plt.plot(b3, h3, color='blue', label="ground-truth")
+    plt.legend()
+    plt.show()
+
+    # ========================    组合结果       ===================================
     """
     # 使用多次计算的均值得到的结果提升：多帧超分辨率
     k3 = open("./a_4.pickle", 'rb')
