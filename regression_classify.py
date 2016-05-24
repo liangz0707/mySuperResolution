@@ -223,6 +223,6 @@ def hist_show(error_list, l):
             ax.hist(error_list[i*x+j], bins=100)
     plt.show()
 
-# classify_by_regression(tag="1")
+classify_by_regression(tag="3")
 #classify_by_regression(tag="mullayer36")
-classify_by_regression(tag="mullayer69")
+# classify_by_regression(tag="mullayer69")

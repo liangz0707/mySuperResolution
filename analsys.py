@@ -465,13 +465,56 @@ def psnr_test():
     print np.max(im_origin)
     print psnr(im_origin, im_jor)
 
+
+def heavy_taild_test():
+    """
+    由于比较模糊的图像具备heavy-tailed特征，这里就是用来查看图像结果的
+    :return:
+    """
+    im_a = io.imread("result_google_plastic_1.bmp")
+    im_b = io.imread("result_google_plastic_2.bmp")
+
+    f1 = np.asarray([[-1.0, 0, 0, 1.0]], dtype='float')
+    f2 = np.asarray([[-1.0], [0], [0], [1.0]], dtype='float')
+    f3 = np.asarray([[1.0, 0, 0, -2.0, 0, 0, 1.0]], dtype='float')
+    f4 = np.asarray([[1.0], [0], [0], [-2.0], [0], [0], [1.0]], dtype='float')
+
+    # 计算梯度直方图
+    feature_a = np.zeros((4, im_a.shape[0], im_a.shape[1]))
+    feature_b = np.zeros((4, im_a.shape[0], im_a.shape[1]))
+
+    feature_b[0, :, :] = convolve2d(im_b, f1, mode='same')
+    feature_b[1, :, :] = convolve2d(im_b, f2, mode='same')
+
+    feature_a[0, :, :] = convolve2d(im_a, f1, mode='same')
+    feature_a[1, :, :] = convolve2d(im_a, f2, mode='same')
+
+    grad_a = feature_a[0, :, :] + feature_a[1, :, :]
+    grad_b = feature_b[0, :, :] + feature_b[1, :, :]
+    a = list(grad_a.reshape((grad_a.shape[0]*grad_a.shape[1],)))
+    b = list(grad_b.reshape((grad_a.shape[0]*grad_a.shape[1],)))
+    a = [math.sqrt(abs(i)) for i in a]
+    b = [math.sqrt(abs(i)) for i in b]
+    #
+    plt.subplot(221)
+    plt.axis([0, 30, 0, 40000])
+    plt.hist(a, bins=100)
+    plt.subplot(222)
+    plt.axis([0, 30, 0, 40000])
+    plt.hist(b, bins=100)
+    plt.subplot(223)
+    plt.imshow(im_a, interpolation="none", cmap=cm.gray)
+    plt.subplot(224)
+    plt.imshow(im_b, interpolation="none", cmap=cm.gray)
+    plt.show()
+heavy_taild_test()
 #combine()
 #deformed()
 #deformed_test()
 #psnr_test()
 #test_bicubic()
 #patch_class_show()
-patch_single_class_show()
+# patch_single_class_show()
 #dict_single_class_show()
 #sc_result_analysis()
 # patch_class_show()

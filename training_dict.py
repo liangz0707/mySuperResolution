@@ -256,6 +256,7 @@ def learn_for_regression(use_classify=False, use_pca=False, tag=1, n_components=
     # ====================================计算分类并保存=======================================
     # =====================   training_data.pickle ---》class_result.pickle   ================
     train_file = open('./tmp_file/_%d_training_data.pickle' % 1, 'rb')
+    #train_file = open('./tmp_file/_%d_training_data.pickle' % 3, 'rb')
     training_data = cPickle.load(train_file)
     train_file.close()
 
@@ -542,7 +543,7 @@ def learn_for_regression_mullayer(use_classify=False, use_pca=False, tag="mullay
 
 
 # learn_for_sc(use_classify=True, use_pca=True, tag=100)
-# learn_for_regression(use_classify=True, use_pca=True, tag=1)
-learn_for_regression_mullayer(use_classify=True, use_pca=True, tag="mullayer69")
+learn_for_regression(use_classify=True, use_pca=True, tag=1)
+# learn_for_regression_mullayer(use_classify=True, use_pca=True, tag="mullayer69")
 #learn_for_regression_mullayer(use_classify=True, use_pca=True, tag="mullayer36")
 

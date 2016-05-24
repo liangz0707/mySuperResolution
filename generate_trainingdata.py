@@ -134,6 +134,15 @@ def get_train_set(img_lib, scale=3.0, feat_scale=3.0, patch_size_l=3):
         feature_img[2, :, :] = convolve2d(mim, f3, mode='same')
         feature_img[3, :, :] = convolve2d(mim, f4, mode='same')
 
+        # 改进特征1 :进行开方
+        #featurn_sign = np.sign(feature_img)  # 提取符号
+        #feature_img = np.sqrt(np.abs(feature_img)) * featurn_sign
+
+        # 改进特征2 :进行平方
+        #featurn_sign = np.sign(feature_img)  # 提取符号
+        #feature_img = np.abs(feature_img)**2 * featurn_sign
+
+        #
         feature_img_list.append(feature_img)
         # target_img_list.append(image_pre_filter(target_patch))
         target_img_list.append(target_img)
@@ -212,12 +221,12 @@ def main_generate(ind, tr_num=500000):
     img_lib = read_img_train(lib_path)
 
     # 得到训练的输入（梯度等特征），输出（可能经过的归一化等处理）和原始图像的patch
-    patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=6.0, output_size=9.0, over_lap=3)
-    #patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=3.0, output_size=6.0, over_lap=2)
-    #patch_lib, feature_lib, raw_lib = get_train_set(img_lib)
+    # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=6.0, output_size=9.0, over_lap=3)
+    # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=3.0, output_size=6.0, over_lap=2)
+    patch_lib, feature_lib, raw_lib = get_train_set(img_lib)
 
     if len(patch_lib) > tr_num:
-        s_factor = len(patch_lib)/tr_num + 1
+        s_factor = len(patch_lib)/tr_num  # + 1
         patch_lib = patch_lib[::s_factor]
         feature_lib = feature_lib[::s_factor]
         raw_lib = raw_lib[::s_factor]
@@ -240,4 +249,4 @@ def main_generate(ind, tr_num=500000):
 
 if __name__ == '__main__':
     # 修改这个结果就可以生成不同文件夹中的训练数据
-    main_generate("mullayer69")
+    main_generate("1")
