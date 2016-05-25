@@ -244,7 +244,7 @@ def filter_patch_for_sc(feature_list, patch_list):
     return feature_list, patch_list
 
 
-def learn_for_regression(use_classify=False, use_pca=False, tag=1, n_components=30):
+def learn_for_regression(use_classify=False, use_pca=False, input_tag=1,output_tag=10, n_components=30):
     """
     1.读取训练数据进行预处理
     2.根据feature计算训练patch分类进行保存
@@ -255,7 +255,7 @@ def learn_for_regression(use_classify=False, use_pca=False, tag=1, n_components=
     # '''
     # ====================================计算分类并保存=======================================
     # =====================   training_data.pickle ---》class_result.pickle   ================
-    train_file = open('./tmp_file/_%d_training_data.pickle' % 1, 'rb')
+    train_file = open('./tmp_file/_%d_training_data.pickle' % input_tag, 'rb')
     #train_file = open('./tmp_file/_%d_training_data.pickle' % 3, 'rb')
     training_data = cPickle.load(train_file)
     train_file.close()
@@ -282,25 +282,25 @@ def learn_for_regression(use_classify=False, use_pca=False, tag=1, n_components=
         y_predict = np.zeros((len(feature_lib),))  # 表示全部属于同一类
 
     # 保存分类标签结果
-    with open('./tmp_file/%d_class_tag.pickle' % tag, 'wb') as f:
+    with open('./tmp_file/%d_class_tag.pickle' % output_tag, 'wb') as f:
         cPickle.dump(y_predict, f, 1)
 
-    with open('./tmp_file/%d_kmeans_pca_model.pickle' % tag, 'wb') as f:
+    with open('./tmp_file/%d_kmeans_pca_model.pickle' % output_tag, 'wb') as f:
         cPickle.dump((k_means, pca), f, 1)
 
-    with open('./tmp_file/%d_training_data_normalized.pickle' % tag, 'wb') as f:
+    with open('./tmp_file/%d_training_data_normalized.pickle' % output_tag, 'wb') as f:
         cPickle.dump((feature_lib, patch_lib), f, 1)
     # '''
 
     # '''
     # ==========================读取上一步内容==================================================
-    f = open('./tmp_file/%d_class_tag.pickle' % tag, 'rb')
+    f = open('./tmp_file/%d_class_tag.pickle' % output_tag, 'rb')
     y_predict = cPickle.load(f)
 
-    f = open('./tmp_file/%d_kmeans_pca_model.pickle' % tag, 'rb')
+    f = open('./tmp_file/%d_kmeans_pca_model.pickle' % output_tag, 'rb')
     (k_means, pca) = cPickle.load(f)
 
-    f = open('./tmp_file/%d_training_data_normalized.pickle' % tag, 'rb')
+    f = open('./tmp_file/%d_training_data_normalized.pickle' % output_tag, 'rb')
     (feature_lib, patch_lib) = cPickle.load(f)
     # '''
 
@@ -324,7 +324,7 @@ def learn_for_regression(use_classify=False, use_pca=False, tag=1, n_components=
         classified_patch.append(patch_lib[predict_temp])
 
     # 保存分类结果
-    classified_file = open('./tmp_file/%d_training_data_classified.pickle' % tag, 'wb')
+    classified_file = open('./tmp_file/%d_training_data_classified.pickle' % output_tag, 'wb')
     cPickle.dump((classified_feature, classified_patch), classified_file, 1)
     classified_file.close()
     # '''
@@ -543,7 +543,7 @@ def learn_for_regression_mullayer(use_classify=False, use_pca=False, tag="mullay
 
 
 # learn_for_sc(use_classify=True, use_pca=True, tag=100)
-learn_for_regression(use_classify=True, use_pca=True, tag=1)
+learn_for_regression(use_classify=True, use_pca=True, input_tag=20,output_tag=20)
 # learn_for_regression_mullayer(use_classify=True, use_pca=True, tag="mullayer69")
 #learn_for_regression_mullayer(use_classify=True, use_pca=True, tag="mullayer36")
 

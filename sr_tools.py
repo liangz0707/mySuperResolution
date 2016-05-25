@@ -285,7 +285,7 @@ def get_super_patch_sc(feature_list, patch_list=None, tag=1):
     return result
 
 
-def get_super_patch_regression_with_search(feature_list, patch_list=None, tag=1, file_name="tmp_file.pickle"):
+def get_super_patch_regression_with_search(feature_list, patch_list=None, input_tag='1',model_tag='20',file_name="tmp_file.pickle"):
     """
     得到得到高分辨率的patch
     patch_list:需要进行超分辨率的patch
@@ -295,16 +295,16 @@ def get_super_patch_regression_with_search(feature_list, patch_list=None, tag=1,
     eps = np.finfo(float).eps
 
     # =========================== 加载回归模型以及分类好的数据 ===================
-    classified_file = open('./tmp_file/%d_class_with_regression.pickle' % tag, 'rb')
+    classified_file = open('./tmp_file/%s_class_with_regression.pickle' % input_tag, 'rb')
     classified_feature, classified_patch, classified_error, class_tag = cPickle.load(classified_file)
     classified_file.close()
 
-    regression_file = open('./tmp_file/%d_regression_ridge.pickle' % tag, 'rb')
+    regression_file = open('./tmp_file/%s_regression_ridge.pickle' % input_tag, 'rb')
     regression_list = cPickle.load(regression_file)
     regression_file.close()
 
     # ===========================  读取模型：pca以及kmeans ===============
-    model_file = open('./tmp_file/%d_kmeans_pca_model.pickle' % 1, 'rb')
+    model_file = open('./tmp_file/%s_kmeans_pca_model.pickle' % model_tag, 'rb')
     (k_means, pca) = cPickle.load(model_file)
     model_file.close()
 
@@ -604,16 +604,16 @@ def combine_image_deal_with_overlap(r_patch_list, pos_list, mim, mim_list, pl=9,
     min_ = list(np.min(point_r, axis=1))
 
     point_sort = list(np.std(point_r, axis=1))
-    plt.hist(point_sort, bins=100)
-    plt.show()
+    #plt.hist(point_sort, bins=100)
+    #plt.show()
 
     result_patchmean = img / mask
     gap = img * 0   # 单像素平均和patch平均的误差，为什么会有误差？ 最后结果的psnr值相差0.01 可以忽略
     # ======================================================================================
     for index, c in enumerate(point_sort):
-        if c > 1.8:
-            val = max(min_[index]*1.05, mean[index] * np.sqrt(c))
-            val = min(max_[index]*0.95, val)
+        if c > 1.3:
+            val = max(min_[index], mean[index] * 1.66)
+            val = min(max_[index], val)
             img[point_r_pos[index][0]][point_r_pos[index][1]] = val + mim[point_r_pos[index][0]][point_r_pos[index][1]]
             #img[point_r_pos[index][0]][point_r_pos[index][1]] = 0.01
             mask[point_r_pos[index][0]][point_r_pos[index][1]] = 1.0
@@ -750,426 +750,124 @@ def deformed_image_based(src, dst):
     return cp
 
 
-def super_image(method="sc", input='result/baby_GT.bmp', output="result_baby.bmp"):
-    tmp_file_name = output + '.pickle'
+def image_sharper(result_mean, theta=0.4):
     """
-    处理超分辨率的输入输出
-    :return:
+    范围需要是[0,255]
     """
-    # ================================得到超分辨率的输入和输出=================================
-    # =======================  **.jpg ---》》 feature and patch ====================
-    test_img = io.imread(input)
-    #test_img = test_img[120:240, 80:200, :]
-    shape = test_img.shape
+    g_kernel = np.array([[0, 1, 0],
+                         [1, -4, 1],
+                         [0, 1, 0]])
+    result_sharp = cv2.filter2D(result_mean, -1, g_kernel)
+    result_sharp = result_mean - result_sharp * theta
+    result_sharp[result_sharp > 255] = 255
+    result_sharp[result_sharp < 0] = 0
+    return result_sharp
 
-    if len(shape) == 3:
-        test_img = test_img[:shape[0]-shape[0] % 3, :shape[1]-shape[1] % 3, :]
-    else:
-        test_img = test_img[:shape[0]-shape[0] % 3, :shape[1]-shape[1] % 3]
 
-    lim = imresize(test_img, 1/3.0, 'bicubic')
-    mim = imresize(lim, 3.0, 'bicubic')
-
-    lim = np.asarray(rgb2ycbcr(lim)[:, :, 0], dtype=float)
-    him = np.asarray(rgb2ycbcr(test_img)[:, :, 0], dtype=float)
-    mim = np.asarray(rgb2ycbcr(mim)[:, :, 0], dtype=float)
-
-    feature = np.zeros((4, mim.shape[0], mim.shape[1]))
-
-    f1 = np.asarray([[-1.0, 0, 0, 1.0]], dtype='float')
-    f2 = np.asarray([[-1.0], [0], [0], [1.0]], dtype='float')
-    f3 = np.asarray([[1.0, 0, 0, -2.0, 0, 0, 1.0]], dtype='float')
-    f4 = np.asarray([[1.0], [0], [0], [-2.0], [0], [0], [1.0]], dtype='float')
-
-    feature[0, :, :] = convolve2d(mim, f1, mode='same')
-    feature[1, :, :] = convolve2d(mim, f2, mode='same')
-    feature[2, :, :] = convolve2d(mim, f3, mode='same')
-    feature[3, :, :] = convolve2d(mim, f4, mode='same')
-
-    # featurn_sign = np.sign(feature)  # 提取符号
-    # feature = np.abs(feature)**2 * featurn_sign
-
-    # mim_class = super_pixel_classify(test_img, cls_num=100)
-
-    # ================================ 将patch 和feature 分解list=================================
-    # =======================  feature、patch ----》 feature_list \ patch_list ====================
-    # patch_list是最优解！ 不参与计算 只参与评价
+def devide_into_patch(feature, him, mim, patch_size=9, over_lap_size=6):
     feature_list = []
     him_list = []
     pos_list = []
-    patch_mean = []
-    lim_list = []
     mim_list = []
-    pos_list_lim = []
-    mim_cls_list = []
+    patch_mean = []
 
-    patch_size_l = 3
-    patch_size_m = 3 * patch_size_l
-    patch_size_h = 3 * patch_size_l
-    over_lap_l = 2
-    over_lap_m = 3 * over_lap_l # 7  # 可以随意的定义重叠的大小
-    over_lap_h = 3 * over_lap_l # 7  # 可以随意的定义重叠的大小
+    patch_size_m = patch_size
+    patch_size_h = patch_size
+    over_lap_m = over_lap_size  # 7  # 可以随意的定义重叠的大小
+    over_lap_h = over_lap_size  # 7  # 可以随意的定义重叠的大小
 
-    size_l = lim.shape
     size_m = mim.shape
     size_h = him.shape
 
-    xgrid_l = np.ogrid[0:size_l[0] - patch_size_l: patch_size_l - over_lap_l]
-    ygrid_l = np.ogrid[0:size_l[1] - patch_size_l: patch_size_l - over_lap_l]
+    # xgrid_l = np.ogrid[0:size_l[0] - patch_size_l: patch_size_l - over_lap_l]
+    # ygrid_l = np.ogrid[0:size_l[1] - patch_size_l: patch_size_l - over_lap_l]
     xgrid_m = np.ogrid[0:size_m[0] - patch_size_m: patch_size_m - over_lap_m]
     ygrid_m = np.ogrid[0:size_m[1] - patch_size_m: patch_size_m - over_lap_m]
     xgrid_h = np.ogrid[0:size_h[0] - patch_size_h: patch_size_h - over_lap_h]
     ygrid_h = np.ogrid[0:size_h[1] - patch_size_h: patch_size_h - over_lap_h]
-
     m = patch_size_m * patch_size_m * 4
     h = patch_size_h * patch_size_h
-    l = patch_size_l * patch_size_l
-
     # ========================     提取patch      ============================
     '''
-    for x_l, x_m, x_h in zip(xgrid_l, xgrid_m, xgrid_h):
-        for y_l, y_m, y_h in zip(ygrid_l, ygrid_m, ygrid_h):
-    '''
+        for x_l, x_m, x_h in zip(xgrid_l, xgrid_m, xgrid_h):
+            for y_l, y_m, y_h in zip(ygrid_l, ygrid_m, ygrid_h):
+        '''
     for x_m, x_h in zip(xgrid_m, xgrid_h):
         for y_m, y_h in zip(ygrid_m, ygrid_h):
             # 高清patch
-            him_list.append(him[x_h:x_h+patch_size_h, y_h:y_h+patch_size_h].reshape((h,)))
+            him_list.append(him[x_h:x_h + patch_size_h, y_h:y_h + patch_size_h].reshape((h,)))
             # 中清patch向量化
-            mim_list.append(mim[x_h:x_h+patch_size_h, y_h:y_h+patch_size_h].reshape((h,)))
-            # 低清patch向量化
-            # lim_list.append(lim[x_l:x_l+patch_size_l, y_l:y_l+patch_size_l].reshape((l,)))
+            mim_list.append(mim[x_h:x_h + patch_size_h, y_h:y_h + patch_size_h].reshape((h,)))
             # 特征patch
-            feature_list.append(feature[:, x_m:x_m+patch_size_m, y_m:y_m+patch_size_m].reshape((m,)))
+            feature_list.append(feature[:, x_m:x_m + patch_size_m, y_m:y_m + patch_size_m].reshape((m,)))
             # 高清patch的位置
             pos_list.append((x_h, y_h))  # 保存patch左上角的位置
-            # 低清patch的位置
-            #pos_list_lim.append((x_l, y_l))
             # 高清patch均值
-            patch_mean.append(np.mean(mim[x_h:x_h+patch_size_h, y_h:y_h+patch_size_h].reshape((h,))))
-            # 待回复patch的超像素分类
-            # mim_cls_list.append(mim_class[x_h, y_h])
+            patch_mean.append(np.mean(mim[x_h:x_h + patch_size_h, y_h:y_h + patch_size_h].reshape((h,))))
+
     # ========================= 对patch进行前处理 ===========================
-    feature_list, patch_list,  mim_list = (np.asarray(feature_list, dtype=float), np.asarray(him_list, dtype=float), np.asarray(mim_list, dtype=float))
-    # lim_list = np.asarray(lim_list, dtype=float)
-    # =========================    进行实际计算   ========================================
-    r_patch_list = []
-    if method is "infile":
-        r_patch_list = read_super_patch(tmp_file_name)
-    elif method is "regression":
-        r_patch_list = get_super_patch_regression_with_search(feature_list, him_list, tag=1, file_name = tmp_file_name)
-        # r_patch_list = get_super_patch_regression_with_superpixel(feature_list, him_list, mim_cls_list, tag=1)
-        # r_patch_list = get_super_patch_regression_without_search(feature_list, him_list, tag=1, lim_list=lim_list, mim_list=mim_list)
-    elif method is "sc":
-        r_patch_list = get_super_patch_sc(feature_list, him_list, tag=12)
-
-    print "均方根误差为：%d" % np.mean((him_list - r_patch_list[0])**2)**0.5
-    # ========================      组合结果     =======================================
-    #  r_image = combine_image_from_patch(r_patch_list, pos_list, mim, mim_list)
-    #  r_image = combine_image_from_patch_with_deformed(r_patch_list, pos_list, rim, mim_list=mim_list, lim_list=lim_list, patch_list=patch_list,image=image)
-    result_patchmean, r_image, r_gap = combine_image_deal_with_overlap(r_patch_list, pos_list, mim, mim_list)
-
-    result = r_image  # + rim
-    result[result > 255] = 255
-    result[result < 0] = 0
-
-    result_mean = result_patchmean  # + rim
-    result_mean[result_mean > 255] = 255
-    result_mean[result_mean < 0] = 0
-
-    # ========================    保存结果       =============================
-    io.imsave(output, np.asarray(result, dtype='uint8'))
-
-    # ========================    误差计算       ======================================
-    # 填充没有计算的区域！！！！！！！！！！！！
-    # result[result == 0] = mim[result == 0]  # 处理边界
-    print "峰值性噪比：%0.5f" % psnr(result[3:-3, 3:-3], him[3:-3,3:-3])
-
-    # ========================      结果展示     =======================================
-    # ==================== 这里展示除了heavy-tailed特征以及梯度统计特征
-
-    # 计算梯度直方图
-    h1, b1 = heavy_feature(result_mean)
-    h2, b2 = heavy_feature(result)
-    h3, b3 = heavy_feature(him)
-    plt.plot(b1, h1, color='red', label="result by patch mean")
-    plt.plot(b2, h2, color='black', label="result by dealing with pixel")
-    plt.plot(b3, h3, color='blue', label="ground-truth")
-    plt.legend()
-    plt.show()
-
-    # ========================    组合结果       ===================================
-    """
-    # 使用多次计算的均值得到的结果提升：多帧超分辨率
-    k3 = open("./a_4.pickle", 'rb')
-    result3 = cPickle.load(k3)
-    k3.close()
-    result3 = result3[1:-5, 1:-5]
-
-    k1 = open("./a_6.pickle", 'rb')
-    result1 = cPickle.load(k1)
-    k1.close()
-    result1 = result1[3:-3, 3:-3]
-
-    k2 = open("./a_5.pickle", 'rb')
-    result2 = cPickle.load(k2)
-    k2.close()
-    result2 = result2[2:-4, 2:-4]
-
-    resultc = (result1 + result2 + result3) / 3
-    print "峰值性噪比：%0.5f" % psnr(resultc, him[3:-3,3:-3])
+    feature_list, patch_list, mim_list = (np.asarray(feature_list, dtype=float),
+                                          np.asarray(him_list, dtype=float),
+                                          np.asarray(mim_list, dtype=float))
+    return feature_list, him_list, mim_list, pos_list
 
 
-    k = open("a_6.pickle", 'wb')
-    cPickle.dump(result, k, 1)
-    k.close()
-    """
+def image_feature_generate(test_img):
 
-    mask = result.copy()
-    mask[np.abs(him-result) > 10] = 0
-    mask[np.abs(him-result) < 10] = 255
-    plt.subplot(221)
-    plt.imshow(him, interpolation="None", cmap=cm.gray)
-    plt.subplot(222)
-    plt.imshow(result, interpolation="None",cmap=cm.gray)
-    plt.subplot(223)
-    plt.imshow(r_gap, interpolation="None", cmap=cm.gray)
-    plt.subplot(224)
-    plt.imshow(np.abs(him - result), interpolation="None", cmap=cm.gray)
-    plt.show()
-
-
-def super_image_mullayer(method="regression", input='result/baby_GT.bmp', output="result/baby_MY[gray]reg_3times.bmp"):
-    """
-    处理超分辨率的输入输出
-    :return:
-    """
-    # ================================得到超分辨率的输入和输出=================================
-    # =======================  **.jpg ---》》 feature and patch ====================
-    raw_img = io.imread(input)
-    # raw_img = raw_img[120:240, 80:200, :]
-    shape = raw_img.shape
-    # 首先需要降低三倍
-    if len(shape) == 3:
-        raw_img = raw_img[:shape[0]-shape[0] % 3, :shape[1]-shape[1] % 3, :]
-    else:
-        raw_img = raw_img[:shape[0]-shape[0] % 3, :shape[1]-shape[1] % 3]
-
-    # 首先提升两倍
-
-    lim = imresize(raw_img, 1/3.0, 'bicubic')
-    mim = imresize(lim, 2.0, 'bicubic')
-
+    lim = imresize(test_img, 1 / 3.0, 'bicubic')
+    mim = imresize(lim, 3.0, 'bicubic')
     lim = np.asarray(rgb2ycbcr(lim)[:, :, 0], dtype=float)
+    him = np.asarray(rgb2ycbcr(test_img)[:, :, 0], dtype=float)
     mim = np.asarray(rgb2ycbcr(mim)[:, :, 0], dtype=float)
-    him = np.asarray(rgb2ycbcr(raw_img)[:, :, 0], dtype=float)
-
     feature = np.zeros((4, mim.shape[0], mim.shape[1]))
-
     f1 = np.asarray([[-1.0, 0, 0, 1.0]], dtype='float')
     f2 = np.asarray([[-1.0], [0], [0], [1.0]], dtype='float')
     f3 = np.asarray([[1.0, 0, 0, -2.0, 0, 0, 1.0]], dtype='float')
     f4 = np.asarray([[1.0], [0], [0], [-2.0], [0], [0], [1.0]], dtype='float')
-
     feature[0, :, :] = convolve2d(mim, f1, mode='same')
     feature[1, :, :] = convolve2d(mim, f2, mode='same')
     feature[2, :, :] = convolve2d(mim, f3, mode='same')
     feature[3, :, :] = convolve2d(mim, f4, mode='same')
+    return feature, him, lim, mim
 
-    # mim_class = super_pixel_classify(test_img, cls_num=100)
 
-    # ================================ 将patch 和feature 分解list=================================
+def heavy_tailed_feature(img, color='red', label="result by patch mean"):
+    # 计算梯度直方图
+    h1, b1 = heavy_feature(img)
+    plt.plot(b1, h1, color=color, label=label)
 
-    feature_list = []
-    him_list = []
-    pos_list = []
-    patch_mean = []
-    lim_list = []
-    mim_list = []
-    pos_list_lim = []
-    mim_cls_list = []
 
-    patch_size_m = 6
-    patch_size_h = 6
-    patch_size_l = 3
-    over_lap_l = 1
-    over_lap_m = 2
-    over_lap_h = 2
-
-    size_l = lim.shape
-    size_m = mim.shape
-
-    xgrid_l = np.ogrid[0:size_l[0] - patch_size_l: patch_size_l - over_lap_l]
-    ygrid_l = np.ogrid[0:size_l[1] - patch_size_l: patch_size_l - over_lap_l]
-    xgrid_m = np.ogrid[0:size_m[0] - patch_size_m: patch_size_m - over_lap_m]
-    ygrid_m = np.ogrid[0:size_m[1] - patch_size_m: patch_size_m - over_lap_m]
-
-    m = patch_size_m * patch_size_m * 4
-    h = patch_size_h * patch_size_h
-    l = patch_size_l * patch_size_l
-
-    # ========================     提取patch      ============================
-    for x_l, x_m in zip(xgrid_l, xgrid_m):
-        for y_l, y_m in zip(ygrid_l, ygrid_m):
-            # 中清patch向量化
-            mim_list.append(mim[x_m:x_m+patch_size_m, y_m:y_m+patch_size_m].reshape((h,)))
-            # 低清patch向量化
-            lim_list.append(lim[x_l:x_l+patch_size_l, y_l:y_l+patch_size_l].reshape((l,)))
-            # 特征patch
-            feature_list.append(feature[:, x_m:x_m+patch_size_m, y_m:y_m+patch_size_m].reshape((m,)))
-            # 高清patch的位置
-            pos_list.append((x_m, y_m))  # 保存patch左上角的位置
-            # 低清patch的位置
-            pos_list_lim.append((x_l, y_l))
-            # 高清patch均值
-            patch_mean.append(np.mean(mim[x_m:x_m+patch_size_h, y_m:y_m+patch_size_h].reshape((h,))))
-            # 待回复patch的超像素分类
-            # mim_cls_list.append(mim_class[x_h, y_h])
-    # ========================= 对patch进行前处理 ===========================
-    feature_list, lim_list, mim_list = (np.asarray(feature_list, dtype=float), np.asarray(lim_list, dtype=float), np.asarray(mim_list, dtype=float))
-
-    # =========================    进行实际计算   ========================================
-    r_patch_list = []
-    if method is "infile":
-        r_patch_list = read_super_patch()
-    elif method is "regression":
-        r_patch_list = get_super_patch_regression_mul_with_search(feature_list, him_list, tag="mullayer36")
-
-    # ========================      组合结果     =======================================
-    r_image = combine_image_from_patch(r_patch_list, pos_list, mim, mim_list, pl=6)
-
-    result = r_image
-    result[result > 255] = 255
-    result[result < 0] = 0
-
-    # =========================     得到了提升两倍的结果：result   =================================
-    # plt.imshow(result, interpolation="None", cmap=cm.gray)
-    # plt.show()
-    # =========================     下面需要对result进行1.5倍的提升   ==============================
-    # ===================================================
-    # ====================================================
-    # =====================================================
-
-    raw_img = result
-    shape = raw_img.shape
-    # 首先需要降低三倍
-    if len(shape) == 3:
-        raw_img = raw_img[:shape[0]-shape[0] % 2, :shape[1]-shape[1] % 2, :]
-    else:
-        raw_img = raw_img[:shape[0]-shape[0] % 2, :shape[1]-shape[1] % 2]
-
-    # 首先提升两倍
-    lim = raw_img
-    mim = imresize(lim, 1.5, 'bicubic')
-
-    lim = np.asarray(lim, dtype=float)
-    mim = np.asarray(mim, dtype=float)
-
-    feature = np.zeros((4, mim.shape[0], mim.shape[1]))
-
-    f1 = np.asarray([[-1.0, 0, 0, 1.0]], dtype='float')
-    f2 = np.asarray([[-1.0], [0], [0], [1.0]], dtype='float')
-    f3 = np.asarray([[1.0, 0, 0, -2.0, 0, 0, 1.0]], dtype='float')
-    f4 = np.asarray([[1.0], [0], [0], [-2.0], [0], [0], [1.0]], dtype='float')
-
-    feature[0, :, :] = convolve2d(mim, f1, mode='same')
-    feature[1, :, :] = convolve2d(mim, f2, mode='same')
-    feature[2, :, :] = convolve2d(mim, f3, mode='same')
-    feature[3, :, :] = convolve2d(mim, f4, mode='same')
-
-    # mim_class = super_pixel_classify(test_img, cls_num=100)
-
-    # ================================ 将patch 和feature 分解list=================================
-
-    feature_list = []
-    him_list = []
-    pos_list = []
-    patch_mean = []
-    lim_list = []
-    mim_list = []
-    pos_list_lim = []
-    mim_cls_list = []
-
-    patch_size_m = 9
-    patch_size_h = 9
-    patch_size_l = 6
-    over_lap_l = 2
-    over_lap_m = 3
-    over_lap_h = 3
-
-    size_l = lim.shape
-    size_m = mim.shape
-
-    xgrid_l = np.ogrid[0:size_l[0] - patch_size_l: patch_size_l - over_lap_l]
-    ygrid_l = np.ogrid[0:size_l[1] - patch_size_l: patch_size_l - over_lap_l]
-    xgrid_m = np.ogrid[0:size_m[0] - patch_size_m: patch_size_m - over_lap_m]
-    ygrid_m = np.ogrid[0:size_m[1] - patch_size_m: patch_size_m - over_lap_m]
-
-    m = patch_size_m * patch_size_m * 4
-    h = patch_size_h * patch_size_h
-    l = patch_size_l * patch_size_l
-
-    # ========================     提取patch      ============================
-    for x_l, x_m in zip(xgrid_l, xgrid_m):
-        for y_l, y_m in zip(ygrid_l, ygrid_m):
-            # 中清patch向量化
-            mim_list.append(mim[x_m:x_m+patch_size_m, y_m:y_m+patch_size_m].reshape((h,)))
-            # 低清patch向量化
-            lim_list.append(lim[x_l:x_l+patch_size_l, y_l:y_l+patch_size_l].reshape((l,)))
-            # 特征patch
-            feature_list.append(feature[:, x_m:x_m+patch_size_m, y_m:y_m+patch_size_m].reshape((m,)))
-            # 高清patch的位置
-            pos_list.append((x_m, y_m))  # 保存patch左上角的位置
-            # 低清patch的位置
-            pos_list_lim.append((x_l, y_l))
-            # 高清patch均值
-            patch_mean.append(np.mean(mim[x_m:x_m+patch_size_h, y_m:y_m+patch_size_h].reshape((h,))))
-            # 待回复patch的超像素分类
-            # mim_cls_list.append(mim_class[x_h, y_h])
-    # ========================= 对patch进行前处理 ===========================
-    feature_list, lim_list, mim_list = (np.asarray(feature_list, dtype=float), np.asarray(lim_list, dtype=float), np.asarray(mim_list, dtype=float))
-
-    # =========================    进行实际计算   ========================================
-    r_patch_list = []
-    if method is "infile":
-        r_patch_list = read_super_patch()
-    elif method is "regression":
-        r_patch_list = get_super_patch_regression_mul_with_search(feature_list, him_list, tag="mullayer69")
-
-    # ========================      组合结果     =======================================
-    r_image = combine_image_from_patch(r_patch_list, pos_list, mim, mim_list, pl=9)
-
-    result = r_image
-    result[result > 255] = 255
-    result[result < 0] = 0
-
-    # print "均方根误差为：%d" % np.mean((him_list - r_patch_list[0])**2)**0.5
-    # ========================      结果展示     =======================================
-    io.imsave(output, np.asarray(result, dtype='uint8'))
-
-    result[result == 0] = mim[result == 0]  # 处理边界
-    print result.shape
-    print him.shape
-    print "峰值性噪比：%0.5f" % psnr(result[3:507,3:505], him[3:507,3:505])
-
-    plt.subplot(131)
-    plt.imshow(result, interpolation="None", cmap=cm.gray)
-    plt.subplot(132)
+def show_result(him, r_gap, result, result_mean, result_sharp):
+    mask = result.copy()
+    mask[np.abs(him - result) > 10] = 0
+    mask[np.abs(him - result) < 10] = 255
+    plt.subplot(231)
     plt.imshow(him, interpolation="None", cmap=cm.gray)
-
+    plt.subplot(232)
+    plt.imshow(np.abs(him - result), interpolation="None", cmap=cm.gray)
+    plt.subplot(233)
+    plt.imshow(r_gap, interpolation="None", cmap=cm.gray)
+    plt.subplot(234)
+    plt.imshow(result_mean, interpolation="None", cmap=cm.gray)
+    plt.subplot(235)
+    plt.imshow(result, interpolation="None", cmap=cm.gray)
+    plt.subplot(236)
+    plt.imshow(result_sharp, interpolation="None", cmap=cm.gray)
     plt.show()
 
 
-if __name__ == '__main__':
-    super_image(method="infile")
-    # super_image(method="regression")
-    # super_image_mullayer(method="regression")
+def compare_lim(lim, result_mean):
+    lim_result = imresize(result_mean, 1 / 3.0, 'bicubic')
+    plt.subplot(131)
+    plt.imshow(lim_result, interpolation="None", cmap=cm.gray)
+    plt.subplot(132)
+    plt.imshow(lim, interpolation="None", cmap=cm.gray)
+    plt.subplot(133)
+    plt.imshow(np.abs(lim_result - lim), vmin=0, vmax=255, interpolation="None", cmap=cm.gray)
+    plt.show()
+
+
 
 """
-==============开始构造KD树=============*3
-KD树构造完成：耗时1.412677秒
-搜索完成：耗时889.283943秒
-计算完成：耗时0.884705秒
-均方根误差为：149
-峰值性噪比：35.25776
-
+34.18313
 """

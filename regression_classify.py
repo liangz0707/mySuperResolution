@@ -62,10 +62,10 @@ def err(a, b):
     return np.mean((a-b)**2, axis=0)**0.5
 
 
-def classify_by_regression(iter_nums=20, class_num=20000, tag='1', dele=2000.00, theta=0.0, err_del=1.0):
+def classify_by_regression(iter_nums=30, class_num=20000, input_tag="1", out_tag="1", dele=.0285, theta=0.70, err_del=0.025):
 
     # ======================== 读取初始的分类结果文件 ==============================
-    classified_file = open('./tmp_file/%s_training_data_classified.pickle' % tag, 'rb')
+    classified_file = open('./tmp_file/%s_training_data_classified.pickle' % input_tag, 'rb')
     (classified_feature, classified_patch) = cPickle.load(classified_file)
 
     # -------------------------------------------------------------------------
@@ -203,11 +203,11 @@ def classify_by_regression(iter_nums=20, class_num=20000, tag='1', dele=2000.00,
         class_tag.append(np.zeros((len(classified_feature[i]),))+i)
     # print class_tag
     # ======================== 保存最终的分类结果文件 ==============================
-    classified_file = open('./tmp_file/%s_class_with_regression.pickle' % tag, 'wb')
+    classified_file = open('./tmp_file/%s_class_with_regression.pickle' % out_tag, 'wb')
     cPickle.dump((classified_feature, classified_patch, classified_error, class_tag), classified_file, 1)
 
     # ======================== 保存结果文件对应的回归模型 ============================
-    regression_file = open('./tmp_file/%s_regression_ridge.pickle' % tag, 'wb')
+    regression_file = open('./tmp_file/%s_regression_ridge.pickle' % out_tag, 'wb')
     cPickle.dump(regression_list, regression_file, 1)
     regression_file.close()
 
@@ -223,6 +223,6 @@ def hist_show(error_list, l):
             ax.hist(error_list[i*x+j], bins=100)
     plt.show()
 
-classify_by_regression(tag="3")
-#classify_by_regression(tag="mullayer36")
+classify_by_regression(input_tag="20", out_tag="20")
+# classify_by_regression(tag="mullayer36")
 # classify_by_regression(tag="mullayer69")

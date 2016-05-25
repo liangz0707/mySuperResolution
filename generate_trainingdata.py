@@ -212,10 +212,10 @@ def read_img_train(cur_dir, down_time=20, scale=0.97):
     return img_lib
 
 
-def main_generate(ind, tr_num=500000):
-    lib_path = os.getcwd()+'/data/train_data/%s' % 1
-    res_path = './tmp_file/_%s_training_data.pickle' % ind
-    res_raw_patch_path = './tmp_file/_%s_training_data_rawpatch.pickle' % ind
+def main_generate(input_tag="3",output_tag="10", tr_num=800000):
+    lib_path = os.getcwd()+'/data/train_data/%s' % input_tag
+    res_path = './tmp_file/_%s_training_data.pickle' % output_tag
+    res_raw_patch_path = './tmp_file/_%s_training_data_rawpatch.pickle' % output_tag
 
     # 读取所有的图片
     img_lib = read_img_train(lib_path)
@@ -226,7 +226,7 @@ def main_generate(ind, tr_num=500000):
     patch_lib, feature_lib, raw_lib = get_train_set(img_lib)
 
     if len(patch_lib) > tr_num:
-        s_factor = len(patch_lib)/tr_num  # + 1
+        s_factor = len(patch_lib)/tr_num + 1
         patch_lib = patch_lib[::s_factor]
         feature_lib = feature_lib[::s_factor]
         raw_lib = raw_lib[::s_factor]
@@ -249,4 +249,4 @@ def main_generate(ind, tr_num=500000):
 
 if __name__ == '__main__':
     # 修改这个结果就可以生成不同文件夹中的训练数据
-    main_generate("1")
+    main_generate(input_tag="3",output_tag="20", tr_num=800000)
