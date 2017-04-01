@@ -16,7 +16,6 @@ from sklearn import linear_model
 import cv2
 from sklearn.cluster import KMeans
 import matplotlib.cm as cm
-from toolgate import gabor
 import random
 from toolgate.superpixel import SLIC
 __author__ = 'liangz14'
