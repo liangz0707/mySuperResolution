@@ -168,7 +168,7 @@ def get_train_set(L_channel_lis, scale=3.0, feat_scale=3.0, patch_size_l=3):
     return target_lib, feature_lib, raw_lib
 
 
-def get_train_set_for_cnn(mat_lib, patch_size=21, over_lap=5, scale=3.0, many2one=False) :
+def get_train_set_for_cnn(mat_lib, patch_size=21, over_lap=5, scale=3.0) :
     """
     这里主要是为卷积神经网络准备数据，
     :param mat_lib:  输入的可以是彩色图片，也可以是L通道的图片, 先处理L通道
@@ -178,6 +178,8 @@ def get_train_set_for_cnn(mat_lib, patch_size=21, over_lap=5, scale=3.0, many2on
     """
     cnn_output = []
     cnn_input = []
+    i = 0
+    all = len(mat_lib)
     for Y_H, Y_L in mat_lib:
         Y_H = Y_H[0: Y_H.shape[0] - Y_H.shape[0] % 3, 0: Y_H.shape[1] - Y_H.shape[1] % 3]
         Y_L = Y_L[0: Y_L.shape[0] - Y_L.shape[0] % 3, 0: Y_L.shape[1] - Y_L.shape[1] % 3]
@@ -191,11 +193,13 @@ def get_train_set_for_cnn(mat_lib, patch_size=21, over_lap=5, scale=3.0, many2on
 
         for x in xgrid:
             for y in ygrid:
-                LR_patch = Y_H[x:x+patch_size, y:y+patch_size] - np.mean(Y_H[x:x+patch_size, y:y+patch_size])
+                LR_patch = Y_L[x:x+patch_size, y:y+patch_size] - np.mean(Y_L[x:x+patch_size, y:y+patch_size])
                 HR_patch = out[x:x+patch_size, y:y+patch_size]
 
                 cnn_input.append(LR_patch)
                 cnn_output.append(HR_patch)
+        i = i + 1
+        print("已处理%.2f" % (i * 1.0 / all * 100.0))
     return np.array(cnn_input), np.array(cnn_output)
 
 
@@ -255,6 +259,7 @@ def read_img_train_Y_channel(cur_dir, down_time=20, scale=0.97):
             _Y_L = cv2.resize(Y_L, (0, 0), None, fac, fac)
             fac = fac * scale
             img_lib.append((np.array(_Y_H, dtype = np.float32), np.array(_Y_L, dtype = np.float32)))
+    print("图像字典完毕，共%d对图片" % len(img_lib))
     return img_lib
 
 
@@ -324,7 +329,7 @@ def main_generate(input_tag="B100",output_tag="training", tr_num=800000):
     print len(patch_lib)
     print len(feature_lib)
 
-def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_num=800000):
+def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_num=500000):
     image_data_path = "E:/mySuperResolution/dataset/%s" % input_tag
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
@@ -342,7 +347,7 @@ def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_n
     # 得到训练的输入（梯度等特征），输出（可能经过的归一化等处理）和原始图像的patch
     # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=6.0, output_size=9.0, over_lap=3)
     # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=3.0, output_size=6.0, over_lap=2)
-    cnn_input, cnn_output = get_train_set_for_cnn(Y_channel_lis)
+    cnn_input, cnn_output = get_train_set_for_cnn(Y_channel_lis,patch_size=41,over_lap=0)
     print cnn_output.shape
     print cnn_input.shape
     if len(cnn_input) > tr_num:
@@ -367,8 +372,8 @@ if __name__ == '__main__':
 
 
     input_tag = "291"
-    output_tag = "291_cnn_Y_channel.pic"
-    main_generate_CNN(tr_num=800000, input_tag =input_tag,output_tag=output_tag)
+    output_tag = "291_cnn_Y_channel_41.pic"
+    main_generate_CNN(tr_num=500000, input_tag =input_tag,output_tag=output_tag)
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
     print res_path
