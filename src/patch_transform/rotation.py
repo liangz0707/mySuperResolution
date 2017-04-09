@@ -20,7 +20,6 @@ class RotationTrans(object):
     """输入patch_list,返回旋转的角度，需要能够锦进行正反变化"""
     pass
     def rotation(self, patch_list, patch_size=(21, 21), patch_center=(10,10)):
-        rotated_patch_list = []
         degrees = []
         """
         degrees是通过计算质心的位置，让其位于最下方
@@ -29,22 +28,18 @@ class RotationTrans(object):
         mat_j = np.zeros(patch_size)
         for i in range(patch_size[0]):
             for j in range(patch_size[1]):
-                mat_i[i][j] = i - patch_center[0]
-                mat_j[i][j] = j - patch_center[1]
+                mat_i[i][j] = i + 1
+                mat_j[i][j] = j + 1
 
         for patch in patch_list:
             p = patch*self.inner_mask - np.min(patch*self.inner_mask)
             m = 1.0*np.sum(p)
-            y = 1.0*np.sum(mat_i * p) / m
-            x = 1.0*np.sum(mat_j * p) / m
+            y = 1.0*np.sum(mat_i * p) / m - patch_center[0] - 1
+            x = 1.0*np.sum(mat_j * p) / m - patch_center[1] - 1
 
             theta = np.arctan(-x*1.0/y)  * 180 / 3.14 # 这里计算的是逆时针的角度，而旋转是顺时针的旋转
-            ratation_mat = cv2.getRotationMatrix2D((10,10), theta,1)
-            rotated_patch = cv2.warpAffine(patch, ratation_mat, patch_size)
-            rotated_patch_list.append(rotated_patch)
             degrees.append(theta)
-        #print degrees
-        return rotated_patch_list,degrees
+        return degrees
 
     def set_param(self, patch_size, patch_depth=1):
         """
@@ -166,7 +161,7 @@ if __name__ == "__main__":
 
     """
     input_tag = "291"
-    output_tag = "291_cnn_Y_channel.pic"
+    output_tag = "291_cnn_Y_channel_21.pic"
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
     print res_path
@@ -178,61 +173,63 @@ if __name__ == "__main__":
     r.set_param(21, 1)
     n_clusters = 30
     training_data = t
-    input = np.array(training_data[0][1:4000])
-    output = np.array(training_data[1][1:4000])
+    seg_num = 5000
 
-    input, degrees = r.rotation(input)
+    train_input = training_data[0][0:120000]
+    train_output = training_data[1][0:120000]
+    data_len = len(train_input)
+    D = np.zeros((data_len))
+    back_input = r.rotate_list(train_input, D)
 
-    input = input - np.mean(input, axis=0)
-    output = output - np.mean(output, axis=0)
-    # t = time.time()
-    # for i in range(1,100,5):
-    #     for j in range(200,300, 4):
-    #         d = random.randint(1,360)
-    #         print (d)
-    #         M = cv2.getRotationMatrix2D((11,11), d, 1)
-    #         dst = cv2.warpAffine(input[j], M, (21,21))
-    #         print(r.get_degre_diff(input[j], dst))
-    # print (time.time() - t)
+    for k in range(0, data_len ,seg_num):
+        print k
+        input = np.array(train_input[k: min(k+ seg_num,data_len)])
+        output = np.array(train_output[k: min(k + seg_num,data_len)])
 
-    # 表示到当前迭代次数位置，每个分类，需要旋转的度数
-    degrees = np.zeros((n_clusters))
-    # 表示每个patch需要旋转的度数
-    D = np.zeros(input.shape[0])
-    dst_input = r.rotate_list(input, D)
-    src_input = r.rotate_list(input, D)
-
-    for itr in range(100):
-        tmp_D = np.zeros(input.shape[0])
-        tmp_degress = np.zeros((n_clusters))
-        t = time.time()
-        # 这个中心是旋转以后的中心
-        center, labels = r.patch_partition(dst_input, n_clusters=n_clusters)
-        dis = np.ones((n_clusters)) * 1000
-        dis[0] = 0
-        for i in range(1, n_clusters):
-            for j in range(i):
-                if i == j:
-                    continue
-                d, error, loss = r.get_degre_diff(center[i], center[j])
-                if dis[i] > error + 0.1 * loss:
-                    dis[i] = error + 0.1 * loss
-                    tmp_degress[i] = d + tmp_degress[j]
-        # 可能大于360
-        print (tmp_degress)
-        for i in range(D.shape[0]):
-            tmp_D[i] = tmp_degress[labels[i]]  # 这里的D需要通过我们计算的label确定每一个patch旋转多少度
-
-        D = D + tmp_D
-        D = D % 360
-        print("第%d次迭代耗时%.2f秒" % (itr, time.time() - t))
-        t = time.time()
+        # 根据质心旋转
+        D = np.array(r.rotation(input))
         dst_input = r.rotate_list(input, D)
-    # 这里的D就是每一个patch需要旋转的角度
-    print(D)
 
-    file = open("rotated_patch.cp", "wb")
-    cPickle.dump((src_input, dst_input, D), file)
+        for itr in range(60):
+            tmp_D = np.zeros(input.shape[0])
+            tmp_degress = np.zeros((n_clusters))
+            t = time.time()
+            # 这个中心是旋转以后的中心
+            center, labels = r.patch_partition(dst_input, n_clusters=n_clusters)
+            dis = np.ones((n_clusters)) * 1000
+            dis[0] = 0
+            for i in range(1, n_clusters):
+                for j in range(i):
+                    if i == j:
+                        continue
+                    d, error, loss = r.get_degre_diff(center[i], center[j])
+                    if dis[i] > error + 0.1 * loss:
+                        dis[i] = error + 0.1 * loss
+                        tmp_degress[i] = d + tmp_degress[j]
+            # 可能大于360
+            # print (tmp_degress)
+            for i in range(D.shape[0]):
+                tmp_D[i] = tmp_degress[labels[i]]  # 这里的D需要通过我们计算的label确定每一个patch旋转多少度
+
+            D = D + tmp_D
+            D = D % 360
+            print("第%d次迭代耗时%.2f秒" % (itr, time.time() - t))
+            t = time.time()
+
+            dst_input = r.rotate_list(input, D)
+
+        train_input[k: min(k + seg_num, data_len)] = r.rotate_list(input, D)
+        train_output[k: min(k + seg_num, data_len)]= r.rotate_list(output,D)
+        # 这里的D就是每一个patch需要旋转的角度
+        print(D)
+
+    # file = open("rotated_patch.cp", "wb")
+    # cPickle.dump((src_input, dst_input, D), file)
+    # file.close()
+
+    rotated_tag = "291_cnn_Y_channel_21_rotated.pic"
+    file = open('E:/mySuperResolution/dataset/%s/%s-v1' % (input_tag, rotated_tag),'wb')
+    cPickle.dump((train_input, train_output), file)
     file.close()
 
     # 显示数据
@@ -242,14 +239,18 @@ if __name__ == "__main__":
     conv = np.zeros((h, w))
     for i in range(1, h - 25, 25):
         for j in range(1, w - 25, 25):
-            conv[i:i + 21, j:j + 21] = src_input[ind]
+            if ind > data_len - 1 :
+                break
+            conv[i:i + 21, j:j + 21] = back_input[ind]
             ind = ind + 1
 
     ind = 0
     conv_rotated = np.zeros((h, w))
     for i in range(1, h - 25, 25):
         for j in range(1, w - 25, 25):
-            conv_rotated[i:i + 21, j:j + 21] = dst_input[ind]
+            if ind > data_len - 1 :
+                break
+            conv_rotated[i:i + 21, j:j + 21] = train_input[ind]
             ind = ind + 1
 
     plt.subplot(121)

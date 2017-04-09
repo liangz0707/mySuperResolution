@@ -7,7 +7,7 @@ import cPickle
 
 if __name__ == "__main__":
     input_tag = "291"
-    output_tag = "291_cnn_Y_channel.pic"
+    output_tag = "291_cnn_Y_channel_21.pic"
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
     print res_path

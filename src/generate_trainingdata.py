@@ -250,6 +250,7 @@ def read_img_train_Y_channel(cur_dir, down_time=20, scale=0.97):
         Y_H = cv2.cvtColor(image_h, cv2.COLOR_BGR2YCR_CB, None)[:, :, 0]
         Y_L = cv2.cvtColor(image_l, cv2.COLOR_BGR2YCR_CB, None)[:, :, 0]
 
+        img_lib.append((np.array(Y_H, dtype=np.float32), np.array(Y_L, dtype=np.float32)))
         fac = 1.0
         # 多次下采样作为样本：
         for i in range(down_time):
@@ -329,7 +330,7 @@ def main_generate(input_tag="B100",output_tag="training", tr_num=800000):
     print len(patch_lib)
     print len(feature_lib)
 
-def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_num=500000):
+def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_num=1000000):
     image_data_path = "E:/mySuperResolution/dataset/%s" % input_tag
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
@@ -347,7 +348,7 @@ def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_n
     # 得到训练的输入（梯度等特征），输出（可能经过的归一化等处理）和原始图像的patch
     # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=6.0, output_size=9.0, over_lap=3)
     # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=3.0, output_size=6.0, over_lap=2)
-    cnn_input, cnn_output = get_train_set_for_cnn(Y_channel_lis,patch_size=41,over_lap=0)
+    cnn_input, cnn_output = get_train_set_for_cnn(Y_channel_lis,patch_size=21,over_lap=0)
     print cnn_output.shape
     print cnn_input.shape
     if len(cnn_input) > tr_num:
@@ -372,8 +373,8 @@ if __name__ == '__main__':
 
 
     input_tag = "291"
-    output_tag = "291_cnn_Y_channel_41.pic"
-    main_generate_CNN(tr_num=500000, input_tag =input_tag,output_tag=output_tag)
+    output_tag = "291_cnn_Y_channel_21_with_down.pic"
+    main_generate_CNN(tr_num=1000000, input_tag = input_tag, output_tag=output_tag)
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
     print res_path

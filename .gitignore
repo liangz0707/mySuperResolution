@@ -7,3 +7,5 @@ toolgate/
 tmp_file/
 *.pickle
 bak/
+dataset/
+*.cp
