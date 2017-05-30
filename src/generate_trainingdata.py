@@ -193,7 +193,7 @@ def get_train_set_for_cnn(mat_lib, patch_size=21, over_lap=5, scale=3.0) :
 
         for x in xgrid:
             for y in ygrid:
-                LR_patch = Y_L[x:x+patch_size, y:y+patch_size] - np.mean(Y_L[x:x+patch_size, y:y+patch_size])
+                LR_patch = Y_L[x:x+patch_size, y:y+patch_size]# - np.mean(Y_L[x:x+patch_size, y:y+patch_size])
                 HR_patch = out[x:x+patch_size, y:y+patch_size]
 
                 cnn_input.append(LR_patch)
@@ -250,7 +250,18 @@ def read_img_train_Y_channel(cur_dir, down_time=20, scale=0.97):
         Y_H = cv2.cvtColor(image_h, cv2.COLOR_BGR2YCR_CB, None)[:, :, 0]
         Y_L = cv2.cvtColor(image_l, cv2.COLOR_BGR2YCR_CB, None)[:, :, 0]
 
+        m1 = cv2.getRotationMatrix2D((20,20),90,1)
+        m2 = cv2.getRotationMatrix2D((20,20),180,1)
+        m3 = cv2.getRotationMatrix2D((20,20),270,1)
+
         img_lib.append((np.array(Y_H, dtype=np.float32), np.array(Y_L, dtype=np.float32)))
+        # img_lib.append((cv2.warpAffine(np.array(Y_H, dtype=np.float32),m1,Y_H.shape)
+        #                , cv2.warpAffine(np.array(Y_L, dtype=np.float32),m1,Y_H.shape)))
+        # img_lib.append((cv2.warpAffine(np.array(Y_H, dtype=np.float32),m2,Y_H.shape)
+        #                , cv2.warpAffine(np.array(Y_L, dtype=np.float32),m2,Y_H.shape)))
+        # img_lib.append((cv2.warpAffine(np.array(Y_H, dtype=np.float32),m3,Y_H.shape)
+        #                , cv2.warpAffine(np.array(Y_L, dtype=np.float32),m3,Y_H.shape)))
+
         fac = 1.0
         # 多次下采样作为样本：
         for i in range(down_time):
@@ -335,7 +346,7 @@ def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_n
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
     # 读取所有的图片, 已经经过图像颜色通道处理，提取出了L通道
-    Y_channel_lis = read_img_train_Y_channel(image_data_path)
+    Y_channel_lis = read_img_train_Y_channel(image_data_path,down_time=0)
     # 读取所有的图片, 未经过图像颜色通道处理
     # img_lib = read_img_train_RGB(image_data_path)
     #
@@ -348,7 +359,7 @@ def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_n
     # 得到训练的输入（梯度等特征），输出（可能经过的归一化等处理）和原始图像的patch
     # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=6.0, output_size=9.0, over_lap=3)
     # patch_lib, feature_lib, raw_lib = get_train_set_by_scale(img_lib, input_size=3.0, output_size=6.0, over_lap=2)
-    cnn_input, cnn_output = get_train_set_for_cnn(Y_channel_lis,patch_size=21,over_lap=0)
+    cnn_input, cnn_output = get_train_set_for_cnn(Y_channel_lis,patch_size=41,over_lap=0)
     print cnn_output.shape
     print cnn_input.shape
     if len(cnn_input) > tr_num:
@@ -363,6 +374,23 @@ def main_generate_CNN(input_tag="B100",output_tag="B100_cnn_L_channel.pic", tr_n
     f = open(res_path, 'wb')
     cPickle.dump(training_data, f,1)
     f.close()
+
+    data_len=50000
+    h=1000
+    w=1000
+    patch_size=41
+    ind = 0
+    conv_rotated = np.zeros((h, w))
+    for i in range(1, h - patch_size-3, patch_size+5):
+        for j in range(1, w - patch_size-3,  patch_size+5):
+            if ind > data_len - 1 :
+                break
+            conv_rotated[i:i + patch_size, j:j + patch_size] = cnn_input[ind]
+            ind = ind + 1
+
+    plt.imshow(conv_rotated)
+    plt.show()
+
     print "训练数据已经保存！"
     print cnn_input.shape
     print res_path
@@ -373,8 +401,8 @@ if __name__ == '__main__':
 
 
     input_tag = "291"
-    output_tag = "291_cnn_Y_channel_21_with_down.pic"
-    main_generate_CNN(tr_num=1000000, input_tag = input_tag, output_tag=output_tag)
+    output_tag = "291_cnn_Y_channel_41.pic"
+    main_generate_CNN(tr_num=50000, input_tag = input_tag, output_tag=output_tag)
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
     print res_path

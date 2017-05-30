@@ -32,8 +32,12 @@ class RotationTrans(object):
                 mat_j[i][j] = j + 1
 
         for patch in patch_list:
-            p = patch*self.inner_mask - np.min(patch*self.inner_mask)
+            p = patch*self.inner_mask# - np.min(patch*self.inner_mask)
             m = 1.0*np.sum(p)
+            if m == 0:
+                degrees.append(0)
+                continue
+
             y = 1.0*np.sum(mat_i * p) / m - patch_center[0] - 1
             x = 1.0*np.sum(mat_j * p) / m - patch_center[1] - 1
 
@@ -133,7 +137,7 @@ class RotationTrans(object):
 
         return d, new_dist, loss
 
-    def patch_partition(self, patch_list, n_clusters=30):
+    def patch_partition(self, patch_list, n_clusters=30,patch_size=(21,21)):
         """
         输入path列表，返回聚类中心，和聚类标签
         :param patch_list:
@@ -149,19 +153,13 @@ class RotationTrans(object):
         k_means_labels = pairwise_distances_argmin(patch_data, k_means_cluster_centers)
         t_batch = time.time() - t0
         print ("%d个patch进行Kmean聚类,分成%d类，耗时%d秒" % (patch_data.shape[0], n_clusters, t_batch))
-        return np.reshape(np.array(k_means_cluster_centers), (-1, 21, 21)), k_means_labels
+        return np.reshape(np.array(k_means_cluster_centers), (-1, patch_size[0], patch_size[1])), k_means_labels
 
-if __name__ == "__main__":
-    """
-    TODO:
-    1.【finished】需要检查mask是否合理的使用了，需要对所有的patch使用mask转换成圆形的patch
-    2.目前的数据集和都是十分稀少的，数量在1W左右的patch计算,但是实际计算的patch数据量在100W需要进行优化，或者层次计算
-    3.【finished】需要对patch进行正确的归一化处理，例如减去均值，合理的距离计算等操作。
-    4.【finished】在计算距离的时候使用的高斯核，中间的权重大，两边的权重小
 
-    """
+def rotation_training_data():
+
     input_tag = "291"
-    output_tag = "291_cnn_Y_channel_21.pic"
+    output_tag = "291_cnn_Y_channel_21_with_out_rotate.pic"
     res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
 
     print res_path
@@ -171,23 +169,23 @@ if __name__ == "__main__":
 
     r = RotationTrans()
     r.set_param(21, 1)
-    n_clusters = 30
+    n_clusters = 50
     training_data = t
     seg_num = 5000
-
-    train_input = training_data[0][0:120000]
-    train_output = training_data[1][0:120000]
+    print len(training_data[0])
+    train_input = training_data[0]
+    train_output = training_data[1]
     data_len = len(train_input)
     D = np.zeros((data_len))
     back_input = r.rotate_list(train_input, D)
 
-    for k in range(0, data_len ,seg_num):
+    for k in range(0, 0 ,seg_num):
         print k
         input = np.array(train_input[k: min(k+ seg_num,data_len)])
         output = np.array(train_output[k: min(k + seg_num,data_len)])
 
         # 根据质心旋转
-        D = np.array(r.rotation(input))
+        D = np.array(r.rotation(input,patch_size=(41,41), patch_center=(20,20)))
         dst_input = r.rotate_list(input, D)
 
         for itr in range(60):
@@ -203,8 +201,8 @@ if __name__ == "__main__":
                     if i == j:
                         continue
                     d, error, loss = r.get_degre_diff(center[i], center[j])
-                    if dis[i] > error + 0.1 * loss:
-                        dis[i] = error + 0.1 * loss
+                    if dis[i] > error + 0.03 * loss:
+                        dis[i] = error + 0.03 * loss
                         tmp_degress[i] = d + tmp_degress[j]
             # 可能大于360
             # print (tmp_degress)
@@ -213,6 +211,9 @@ if __name__ == "__main__":
 
             D = D + tmp_D
             D = D % 360
+            for i in range(D.shape[0]):
+                while D[i] > 360:
+                    D[i] = D[i] - 360
             print("第%d次迭代耗时%.2f秒" % (itr, time.time() - t))
             t = time.time()
 
@@ -227,9 +228,14 @@ if __name__ == "__main__":
     # cPickle.dump((src_input, dst_input, D), file)
     # file.close()
 
-    rotated_tag = "291_cnn_Y_channel_21_rotated.pic"
-    file = open('E:/mySuperResolution/dataset/%s/%s-v1' % (input_tag, rotated_tag),'wb')
-    cPickle.dump((train_input, train_output), file)
+    # rotated_tag = "291_cnn_Y_channel_21_rotated-v2.pic"
+    # file = open('E:/mySuperResolution/dataset/%s/%s' % (input_tag, rotated_tag),'wb')
+    # cPickle.dump((train_input, train_output), file)
+    # file.close()
+
+    rotated_tag = "291_cnn_Y_channel_21_rotated-v2.pic"
+    file = open('E:/mySuperResolution/dataset/%s/%s' % (input_tag, rotated_tag), 'rb')
+    (train_input, train_output) = cPickle.load(file)
     file.close()
 
     # 显示数据
@@ -259,3 +265,138 @@ if __name__ == "__main__":
     plt.imshow(conv_rotated)
     plt.show()
 
+
+if __name__ == "__main__":
+
+    input_tag = "291"
+    output_tag = "291_cnn_Y_channel_41.pic"
+    res_path = 'E:/mySuperResolution/dataset/%s/%s' % (input_tag, output_tag)
+
+    print res_path
+    f = open(res_path, 'rb')
+    t = cPickle.load(f)
+    f.close()
+
+    r = RotationTrans()
+    r.set_param(41, 1)
+    n_clusters = 10
+    training_data = t
+    seg_num = 5000
+
+    print len(training_data[0])
+    tmp_train_input = training_data[0]
+    tmp_train_output = training_data[1]
+
+    train_input = []
+    train_output = []
+    """
+    为了能够更好的展示，这里需要提出一些视觉效果不好的patch和平坦patch
+    """
+
+    for patch, patch_in in zip(tmp_train_output,tmp_train_input):
+        if np.sum(np.abs(patch-np.mean(patch))) > 10:
+            train_input.append(patch_in)
+            train_output.append(patch)
+    train_input = train_input[340: 360]
+    train_output = train_output[340: 360]
+
+    for i in range(800):
+        ind = np.random.randint(0,20)
+        c = np.random.randint(0,360)
+        train_input.append(r.get_rotation_version(train_input[ind],[c])[0])
+        train_output.append(r.get_rotation_version(train_output[ind],[c])[0])
+
+
+    data_len = len(train_input)
+    D = np.zeros((data_len))
+    back_input = r.rotate_list(train_input, D)
+
+    for k in range(0, 1000 ,seg_num):
+        print k
+        input = np.array(train_input[k: min(k+ seg_num,data_len)])
+        output = np.array(train_output[k: min(k + seg_num,data_len)])
+
+        # 根据质心旋转
+        D = np.array(r.rotation(input,patch_size=(41,41),patch_center=(20,20)))
+        dst_input = r.rotate_list(input, D)
+
+        for itr in range(10):
+            tmp_D = np.zeros(input.shape[0])
+            tmp_degress = np.zeros((n_clusters))
+            t = time.time()
+            # 这个中心是旋转以后的中心
+            center, labels = r.patch_partition(dst_input, n_clusters=n_clusters,patch_size=(41,41))
+            dis = np.ones((n_clusters)) * 1000
+            dis[0] = 0
+            for i in range(1, n_clusters):
+                for j in range(i):
+                    if i == j:
+                        continue
+                    d, error, loss = r.get_degre_diff(center[i], center[j])
+                    if dis[i] > error + 0.0003 * loss:
+                        dis[i] = error + 0.0003 * loss
+                        tmp_degress[i] = d + tmp_degress[j]
+            # 可能大于360
+            # print (tmp_degress)
+            for i in range(D.shape[0]):
+                tmp_D[i] = tmp_degress[labels[i]]  # 这里的D需要通过我们计算的label确定每一个patch旋转多少度
+
+            D = D + tmp_D
+            D = D % 360
+            for i in range(D.shape[0]):
+                while D[i] > 360:
+                    D[i] = D[i] - 360
+            print("第%d次迭代耗时%.2f秒" % (itr, time.time() - t))
+            t = time.time()
+
+            dst_input = r.rotate_list(input, D)
+
+        train_input[k: min(k + seg_num, data_len)] = r.rotate_list(input, D)
+        train_output[k: min(k + seg_num, data_len)]= r.rotate_list(output,D)
+        # 这里的D就是每一个patch需要旋转的角度
+        print(D)
+
+    # file = open("rotated_patch.cp", "wb")
+    # cPickle.dump((src_input, dst_input, D), file)
+    # file.close()
+
+    # 保存旋转好的结果
+    rotated_tag = "tmp_rotated_patch.pic"
+    file = open('E:/mySuperResolution/dataset/%s/%s' % (input_tag, rotated_tag),'wb')
+    cPickle.dump((train_input, train_output), file)
+    file.close()
+
+    # 都需旋转好的结果用于展示
+    rotated_tag = "tmp_rotated_patch.pic"
+    file = open('E:/mySuperResolution/dataset/%s/%s' % (input_tag, rotated_tag), 'rb')
+    (train_input, train_output) = cPickle.load(file)
+    file.close()
+
+    # 显示数据
+    h = 1000
+    w = 1000
+    ind = 0
+
+    patch_size = 41
+    conv = np.zeros((h, w))
+    for i in range(1, h - patch_size-3, patch_size+5):
+        for j in range(1, w - patch_size-3, patch_size+5):
+            if ind > data_len - 1 :
+                break
+            conv[i:i + patch_size, j:j + patch_size] = back_input[ind]
+            ind = ind + 1
+
+    ind = 0
+    conv_rotated = np.zeros((h, w))
+    for i in range(1, h - patch_size-3, patch_size+5):
+        for j in range(1, w - patch_size-3,  patch_size+5):
+            if ind > data_len - 1 :
+                break
+            conv_rotated[i:i + patch_size, j:j + patch_size] = train_input[ind]
+            ind = ind + 1
+
+    plt.subplot(121)
+    plt.imshow(conv)
+    plt.subplot(122)
+    plt.imshow(conv_rotated)
+    plt.show()

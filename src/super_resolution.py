@@ -332,7 +332,7 @@ def super_image(method="sc", input='result/bird_GT.bmp', output="result_bird.bmp
 if __name__ == '__main__':
     # super_image(method="infile",input='result/head_GT.bmp', output="result_head.bmp") #33.8
     # super_image(method="infile",input='result/bird_GT.bmp', output="result_bird.bmp") #35.24
-    # super_image(method="infile",input='result/baby_GT.bmp', output="result_baby.bmp") #35.25
+     super_image(method="infile",input='result/baby_GT.bmp', output="result_baby.bmp") #35.25
     # super_image(method="infile",input='result/butterfly_GT.bmp', output="result_butterfly.bmp") #26.32
-    super_image(method="infile",input='result/woman_GT.bmp', output="result_woman.bmp")
+    # super_image(method="infile",input='result/woman_GT.bmp', output="result_woman.bmp")
     # super_image_mullayer(method="regression")
